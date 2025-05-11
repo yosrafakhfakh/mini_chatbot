@@ -52,9 +52,12 @@ def create_embeddings(questions, lang):
         for word in words:
             if word in vectorizer.vocabulary_:
                 tfidf_weight = vectorizer.idf_[vectorizer.vocabulary_[word]]
-                word_vector = fasttext_model.get_word_vector(word)
-                vector += word_vector * tfidf_weight
-                weights_sum += tfidf_weight
+                
+                # Vérification de la présence du mot dans le vocabulaire FastText
+                if word in fasttext_model:
+                    word_vector = fasttext_model.get_word_vector(word)
+                    vector += word_vector * tfidf_weight
+                    weights_sum += tfidf_weight
 
         if weights_sum > 0:
             vector /= weights_sum
