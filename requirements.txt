@@ -11,5 +11,5 @@ scipy
 dotenv
 unidecode
 sentence_transformers
-torch
 transformers
+torch==2.2.2+cpu -f https://download.pytorch.org/whl/torch_stable.html
