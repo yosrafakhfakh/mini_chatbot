@@ -3,6 +3,8 @@ from system.answer import get_answer
 from system.feedback import save_feedback_to_github
 from dotenv import load_dotenv
 from datetime import datetime
+import os
+
 
 app = Flask(__name__)
 load_dotenv()
@@ -36,4 +38,6 @@ def rate():
         return jsonify({'status': 'Erreur serveur'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  
+    app.run(host="0.0.0.0", port=port)
+    
