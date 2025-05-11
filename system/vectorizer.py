@@ -1,63 +1,47 @@
-import os
-import urllib.request
-import gzip
-import shutil
-import fasttext
+# vectorizer.py
 import numpy as np
+from gensim.models import Word2Vec
 from sklearn.feature_extraction.text import TfidfVectorizer
 from pretraitement import preprocess
 
-# === Téléchargement automatique du modèle fastText si nécessaire ===
-MODEL_PATH = 'cc.fr.300.bin'
-MODEL_URL = 'https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.fr.300.bin.gz'
-
-if not os.path.isfile(MODEL_PATH):
-    print("🔽 Téléchargement du modèle fastText cc.fr.300.bin...")
-    gz_path = MODEL_PATH + '.gz'
-    urllib.request.urlretrieve(MODEL_URL, gz_path)
-    print("✅ Téléchargement terminé. Décompression...")
-
-    with gzip.open(gz_path, 'rb') as f_in:
-        with open(MODEL_PATH, 'wb') as f_out:
-            shutil.copyfileobj(f_in, f_out)
-
-    os.remove(gz_path)
-    print("📦 Modèle fastText prêt.")
-
-# Charger le modèle FastText
-fasttext_model = fasttext.load_model(MODEL_PATH)
-
-# Variables globales pour les TF-IDF
+# === Variables globales ===
 tfidf_vectorizers = {}
+word2vec_models = {}
 
-def build_tfidf_vectorizer(questions, lang):
+def train_vectorizer_and_w2v(questions, lang):
+    # Prétraitement
     cleaned_questions = [preprocess(q, lang) for q in questions]
-    vectorizer = TfidfVectorizer()
-    vectorizer.fit(cleaned_questions)
-    tfidf_vectorizers[lang] = vectorizer
+    tokenized_questions = [q.split() for q in cleaned_questions]
+
+    # TF-IDF
+    tfidf = TfidfVectorizer()
+    tfidf.fit(cleaned_questions)
+    tfidf_vectorizers[lang] = tfidf
+
+    # Word2Vec local (léger)
+    w2v = Word2Vec(sentences=tokenized_questions, vector_size=50, window=5, min_count=1)
+    word2vec_models[lang] = w2v
 
 def create_embeddings(questions, lang):
     vectorizer = tfidf_vectorizers.get(lang)
-    if not vectorizer:
-        raise ValueError(f"TF-IDF vectorizer not built for language: {lang}")
-    
+    w2v_model = word2vec_models.get(lang)
+
+    if not vectorizer or not w2v_model:
+        raise ValueError(f"Vectorizer or Word2Vec model not trained for language: {lang}")
+
     cleaned_questions = [preprocess(q, lang) for q in questions]
     embeddings = []
 
     for question in cleaned_questions:
         words = question.split()
-        vector = np.zeros(fasttext_model.get_dimension())
+        vector = np.zeros(w2v_model.vector_size)
         weights_sum = 0
 
         for word in words:
-            if word in vectorizer.vocabulary_:
+            if word in vectorizer.vocabulary_ and word in w2v_model.wv:
                 tfidf_weight = vectorizer.idf_[vectorizer.vocabulary_[word]]
-                
-                # Vérification de la présence du mot dans le vocabulaire FastText
-                if word in fasttext_model:
-                    word_vector = fasttext_model.get_word_vector(word)
-                    vector += word_vector * tfidf_weight
-                    weights_sum += tfidf_weight
+                vector += w2v_model.wv[word] * tfidf_weight
+                weights_sum += tfidf_weight
 
         if weights_sum > 0:
             vector /= weights_sum

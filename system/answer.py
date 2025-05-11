@@ -1,12 +1,8 @@
 from langdetect import detect
 from .loader import load_dataset
-from .vectorizer import create_embeddings, build_tfidf_vectorizer
+from .vectorizer import create_embeddings, build_tfidf_vectorizer, get_average_vector
 from pretraitement import preprocess
 import numpy as np
-import fasttext
-
-# Charger FastText model ici aussi pour get_sentence_vector
-model = fasttext.load_model('cc.fr.300.bin')
 
 # Charger les données
 data = load_dataset()
@@ -21,7 +17,7 @@ for category in data['qa_categories'].values():
             questions_en.append(item['question']['en'])
             answers_en.append(item['reponse']['en'])
 
-# Construction TF-IDF + FastText embeddings
+# Préparer les vecteurs
 build_tfidf_vectorizer(questions_fr, 'fr')
 embeddings_fr = create_embeddings(questions_fr, 'fr')
 
@@ -31,21 +27,15 @@ embeddings_en = create_embeddings(questions_en, 'en')
 def format_answer(answer):
     if isinstance(answer, str):
         return answer.strip()
-    if isinstance(answer, dict):
+    elif isinstance(answer, dict):
         output = ""
         for key, value in answer.items():
-            if isinstance(value, list):
-                output += f"<strong>{key.capitalize()}:</strong><ul>"
-                for item in value:
-                    output += f"<li>{item}</li>"
-                output += "</ul>"
-            elif isinstance(value, dict):
-                output += f"<strong>{key.capitalize()}:</strong><br>" + format_answer(value) + "<br>"
-            else:
-                output += f"<strong>{key.capitalize()}:</strong> {value}<br>"
+            output += f"<strong>{key.capitalize()}:</strong> "
+            output += format_answer(value)
+            output += "<br>"
         return output.strip()
     elif isinstance(answer, list):
-        return "<ul>" + "".join([f"<li>{format_answer(a)}</li>" for a in answer]) + "</ul>"
+        return "<ul>" + "".join(f"<li>{format_answer(a)}</li>" for a in answer) + "</ul>"
     return str(answer)
 
 def get_answer(user_input):
@@ -55,16 +45,19 @@ def get_answer(user_input):
             lang = 'fr'
 
         cleaned_input = preprocess(user_input, lang)
-        input_vector = model.get_sentence_vector(cleaned_input)
+        input_vector = get_average_vector(cleaned_input, lang)
+
+        if input_vector is None:
+            return "Je n'ai pas pu comprendre votre question. Essayez de reformuler."
 
         if lang == 'fr':
-            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * np.linalg.norm(emb)) for emb in embeddings_fr]
-            idx = np.argmax(sims)
-            return format_answer(answers_fr[idx]) if sims[idx] > 0.3 else "Désolé, je n'ai pas compris votre question. Veuillez reformuler."
+            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * np.linalg.norm(emb) + 1e-8) for emb in embeddings_fr]
+            idx = int(np.argmax(sims))
+            return format_answer(answers_fr[idx]) if sims[idx] > 0.3 else "Désolé, je n'ai pas compris votre question."
         else:
-            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * np.linalg.norm(emb)) for emb in embeddings_en]
-            idx = np.argmax(sims)
-            return format_answer(answers_en[idx]) if sims[idx] > 0.3 else "Sorry, I didn't understand your question. Please try rephrasing."
+            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * np.linalg.norm(emb) + 1e-8) for emb in embeddings_en]
+            idx = int(np.argmax(sims))
+            return format_answer(answers_en[idx]) if sims[idx] > 0.3 else "Sorry, I didn’t understand your question."
     except Exception as e:
-        print(f"Erreur get_answer: {e}")
+        print("Erreur get_answer:", e)
         return "Une erreur est survenue."
