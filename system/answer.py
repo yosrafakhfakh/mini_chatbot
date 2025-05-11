@@ -1,8 +1,12 @@
 from langdetect import detect
 from .loader import load_dataset
-from .vectorizer import create_embeddings
+from .vectorizer import create_embeddings, build_tfidf_vectorizer
 from pretraitement import preprocess
-from sentence_transformers.util import cos_sim
+import numpy as np
+import fasttext
+
+# Charger FastText model ici aussi pour get_sentence_vector
+model = fasttext.load_model('cc.fr.300.bin')
 
 # Charger les données
 data = load_dataset()
@@ -17,7 +21,11 @@ for category in data['qa_categories'].values():
             questions_en.append(item['question']['en'])
             answers_en.append(item['reponse']['en'])
 
+# Construction TF-IDF + FastText embeddings
+build_tfidf_vectorizer(questions_fr, 'fr')
 embeddings_fr = create_embeddings(questions_fr, 'fr')
+
+build_tfidf_vectorizer(questions_en, 'en')
 embeddings_en = create_embeddings(questions_en, 'en')
 
 def format_answer(answer):
@@ -47,16 +55,16 @@ def get_answer(user_input):
             lang = 'fr'
 
         cleaned_input = preprocess(user_input, lang)
-        input_embedding = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2").encode(cleaned_input, convert_to_tensor=True)
+        input_vector = model.get_sentence_vector(cleaned_input)
 
         if lang == 'fr':
-            sim = cos_sim(input_embedding, embeddings_fr)
-            idx = sim.argmax()
-            return format_answer(answers_fr[idx]) if sim[0][idx] > 0.3 else "Désolé, je n'ai pas compris votre question. Veuillez reformuler."
+            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * np.linalg.norm(emb)) for emb in embeddings_fr]
+            idx = np.argmax(sims)
+            return format_answer(answers_fr[idx]) if sims[idx] > 0.3 else "Désolé, je n'ai pas compris votre question. Veuillez reformuler."
         else:
-            sim = cos_sim(input_embedding, embeddings_en)
-            idx = sim.argmax()
-            return format_answer(answers_en[idx]) if sim[0][idx] > 0.3 else "Sorry, I didn't understand your question. Please try rephrasing."
+            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * np.linalg.norm(emb)) for emb in embeddings_en]
+            idx = np.argmax(sims)
+            return format_answer(answers_en[idx]) if sims[idx] > 0.3 else "Sorry, I didn't understand your question. Please try rephrasing."
     except Exception as e:
         print(f"Erreur get_answer: {e}")
         return "Une erreur est survenue."

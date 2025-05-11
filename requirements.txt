@@ -10,6 +10,4 @@ python-dotenv
 scipy
 dotenv
 unidecode
-sentence_transformers
-transformers
-torch>=2.2,<2.3
+fasttext==0.9.2
