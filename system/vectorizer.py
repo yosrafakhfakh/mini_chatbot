@@ -1,10 +1,31 @@
+import os
+import urllib.request
+import gzip
+import shutil
 import fasttext
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from pretraitement import preprocess
 
+# === Téléchargement automatique du modèle fastText si nécessaire ===
+MODEL_PATH = 'cc.fr.300.bin'
+MODEL_URL = 'https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.fr.300.bin.gz'
+
+if not os.path.isfile(MODEL_PATH):
+    print("🔽 Téléchargement du modèle fastText cc.fr.300.bin...")
+    gz_path = MODEL_PATH + '.gz'
+    urllib.request.urlretrieve(MODEL_URL, gz_path)
+    print("✅ Téléchargement terminé. Décompression...")
+
+    with gzip.open(gz_path, 'rb') as f_in:
+        with open(MODEL_PATH, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+    os.remove(gz_path)
+    print("📦 Modèle fastText prêt.")
+
 # Charger le modèle FastText
-fasttext_model = fasttext.load_model('cc.fr.300.bin')  # pour fr ou cc.en.300.bin pour en
+fasttext_model = fasttext.load_model(MODEL_PATH)
 
 # Variables globales pour les TF-IDF
 tfidf_vectorizers = {}
