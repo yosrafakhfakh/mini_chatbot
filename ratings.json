@@ -5,5 +5,11 @@
     "note": 5,
     "commentaire": "R\u00e9ponse claire et pr\u00e9cise, merci !",
     "timestamp": "2025-05-11T15:03:50.085690"
+  },
+  {
+    "question": "les d\u00e9partements",
+    "answer": "<ul><li>D\u00e9partement des Sciences \u00c9conomiques et de Gestion</li><li>D\u00e9partement des Technologies de l'Informatique</li><li>D\u00e9partement du G\u00e9nie des Proc\u00e9d\u00e9s</li><li>D\u00e9partement du G\u00e9nie Civil</li><li>D\u00e9partement du G\u00e9nie M\u00e9canique</li></ul>",
+    "rating": "up",
+    "timestamp": "2025-05-11T21:40:19.408040"
   }
 ]
