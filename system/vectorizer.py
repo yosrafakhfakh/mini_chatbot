@@ -8,6 +8,13 @@ from pretraitement import preprocess
 tfidf_vectorizers = {}
 word2vec_models = {}
 
+def build_tfidf_vectorizer(corpus):
+    """
+    Prend une liste de textes (corpus) et retourne un vecteur TF-IDF et la matrice transformée.
+    """
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(corpus)
+    return vectorizer, tfidf_matrix
 def train_vectorizer_and_w2v(questions, lang):
     # Prétraitement
     cleaned_questions = [preprocess(q, lang) for q in questions]
