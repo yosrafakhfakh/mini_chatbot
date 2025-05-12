@@ -1,4 +1,3 @@
-# vectorizer.py
 import numpy as np
 from gensim.models import Word2Vec
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -15,7 +14,11 @@ def build_tfidf_vectorizer(corpus):
     vectorizer = TfidfVectorizer()
     tfidf_matrix = vectorizer.fit_transform(corpus)
     return vectorizer, tfidf_matrix
+
 def train_vectorizer_and_w2v(questions, lang):
+    """
+    Entraîne les modèles TF-IDF et Word2Vec pour une langue donnée à partir de la liste de questions.
+    """
     # Prétraitement
     cleaned_questions = [preprocess(q, lang) for q in questions]
     tokenized_questions = [q.split() for q in cleaned_questions]
@@ -30,6 +33,9 @@ def train_vectorizer_and_w2v(questions, lang):
     word2vec_models[lang] = w2v
 
 def create_embeddings(questions, lang):
+    """
+    Crée des embeddings pour une liste de questions en utilisant les modèles TF-IDF et Word2Vec pour la langue spécifiée.
+    """
     vectorizer = tfidf_vectorizers.get(lang)
     w2v_model = word2vec_models.get(lang)
 
@@ -56,3 +62,17 @@ def create_embeddings(questions, lang):
         embeddings.append(vector)
 
     return embeddings
+
+def get_average_vector(words, model):
+    """
+    Calcule le vecteur moyen des mots fournis dans la liste 'words' en utilisant le modèle Word2Vec.
+    """
+    # On extrait les vecteurs de chaque mot
+    vectors = [model.wv[word] for word in words if word in model.wv]
+    
+    # Si aucun mot n'a été trouvé dans le modèle, retourner un vecteur nul
+    if len(vectors) == 0:
+        return np.zeros(model.vector_size)
+    
+    # Calculer la moyenne des vecteurs
+    return np.mean(vectors, axis=0)

@@ -24,6 +24,10 @@ embeddings_fr = create_embeddings(questions_fr, 'fr')
 build_tfidf_vectorizer(questions_en, 'en')
 embeddings_en = create_embeddings(questions_en, 'en')
 
+# Calcul des normes pour éviter de les recalculer
+norms_fr = np.linalg.norm(embeddings_fr, axis=1)
+norms_en = np.linalg.norm(embeddings_en, axis=1)
+
 def format_answer(answer):
     if isinstance(answer, str):
         return answer.strip()
@@ -51,13 +55,13 @@ def get_answer(user_input):
             return "Je n'ai pas pu comprendre votre question. Essayez de reformuler."
 
         if lang == 'fr':
-            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * np.linalg.norm(emb) + 1e-8) for emb in embeddings_fr]
+            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * norm + 1e-8) for emb, norm in zip(embeddings_fr, norms_fr)]
             idx = int(np.argmax(sims))
             return format_answer(answers_fr[idx]) if sims[idx] > 0.3 else "Désolé, je n'ai pas compris votre question."
         else:
-            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * np.linalg.norm(emb) + 1e-8) for emb in embeddings_en]
+            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * norm + 1e-8) for emb, norm in zip(embeddings_en, norms_en)]
             idx = int(np.argmax(sims))
             return format_answer(answers_en[idx]) if sims[idx] > 0.3 else "Sorry, I didn’t understand your question."
     except Exception as e:
-        print("Erreur get_answer:", e)
-        return "Une erreur est survenue."
+        print(f"Erreur dans la fonction get_answer : {e}")
+        return "Une erreur est survenue. Essayez de reformuler votre question."
