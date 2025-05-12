@@ -1,14 +1,13 @@
 from langdetect import detect
 from .loader import load_dataset
-from .vectorizer import create_tfidf_embeddings, build_tfidf_vectorizer
+from .vectorizer import create_vectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 from pretraitement import preprocess
-import numpy as np
 
-# Charger les données
+# Chargement & préparation
 data = load_dataset()
 questions_fr, answers_fr, questions_en, answers_en = [], [], [], []
 
-# Chargement des questions et réponses en français et en anglais
 for category in data['qa_categories'].values():
     for item in category['questions']:
         if 'fr' in item['question']:
@@ -18,62 +17,45 @@ for category in data['qa_categories'].values():
             questions_en.append(item['question']['en'])
             answers_en.append(item['reponse']['en'])
 
-# Préparer les vecteurs TF-IDF
-build_tfidf_vectorizer(questions_fr)
-embeddings_fr = create_tfidf_embeddings(questions_fr, 'fr')
-
-build_tfidf_vectorizer(questions_en)
-embeddings_en = create_tfidf_embeddings(questions_en, 'en')
-
-# Calcul des normes pour éviter de les recalculer
-norms_fr = np.linalg.norm(embeddings_fr, axis=1)
-norms_en = np.linalg.norm(embeddings_en, axis=1)
+vectorizer_fr, X_fr = create_vectorizer(questions_fr, 'fr')
+vectorizer_en, X_en = create_vectorizer(questions_en, 'en')
 
 def format_answer(answer):
-    """
-    Formate les réponses pour une meilleure lisibilité HTML.
-    """
     if isinstance(answer, str):
         return answer.strip()
-    elif isinstance(answer, dict):
+    if isinstance(answer, dict):
         output = ""
         for key, value in answer.items():
-            output += f"<strong>{key.capitalize()}:</strong> "
-            output += format_answer(value)
-            output += "<br>"
+            if isinstance(value, list):
+                output += f"<strong>{key.capitalize()}:</strong><ul>"
+                for item in value:
+                    output += f"<li>{item}</li>"
+                output += "</ul>"
+            elif isinstance(value, dict):
+                output += f"<strong>{key.capitalize()}:</strong><br>" + format_answer(value) + "<br>"
+            else:
+                output += f"<strong>{key.capitalize()}:</strong> {value}<br>"
         return output.strip()
     elif isinstance(answer, list):
-        return "<ul>" + "".join(f"<li>{format_answer(a)}</li>" for a in answer) + "</ul>"
+        return "<ul>" + "".join([f"<li>{format_answer(a)}</li>" for a in answer]) + "</ul>"
     return str(answer)
 
 def get_answer(user_input):
-    """
-    Obtient la réponse à la question de l'utilisateur en calculant les similarités avec les questions existantes.
-    """
     try:
-        # Détection de la langue de la question
         lang = detect(user_input)
         if lang not in ['fr', 'en']:
             lang = 'fr'
-
-        # Prétraitement de la question de l'utilisateur
-        cleaned_input = preprocess(user_input, lang)
-        # Utilisation du vecteur TF-IDF pour la question de l'utilisateur
-        input_vector = create_tfidf_embeddings([cleaned_input], lang)[0]  # Vecteur TF-IDF de l'entrée
-
-        if input_vector is None:
-            return "Je n'ai pas pu comprendre votre question. Essayez de reformuler."
-
-        # Calcul des similarités en français
+        user_input_clean = preprocess(user_input, lang=lang)
         if lang == 'fr':
-            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * norm + 1e-8) for emb, norm in zip(embeddings_fr, norms_fr)]
-            idx = int(np.argmax(sims))
-            return format_answer(answers_fr[idx]) if sims[idx] > 0.3 else "Désolé, je n'ai pas compris votre question."
-        # Calcul des similarités en anglais
+            vec = vectorizer_fr.transform([user_input_clean])
+            sim = cosine_similarity(vec, X_fr)
+            idx = sim.argmax()
+            return format_answer(answers_fr[idx]) if sim[0][idx] > 0.3 else "Désolé, je n'ai pas compris votre question. Veuillez reformuler."
         else:
-            sims = [np.dot(input_vector, emb) / (np.linalg.norm(input_vector) * norm + 1e-8) for emb, norm in zip(embeddings_en, norms_en)]
-            idx = int(np.argmax(sims))
-            return format_answer(answers_en[idx]) if sims[idx] > 0.3 else "Sorry, I didn’t understand your question."
+            vec = vectorizer_en.transform([user_input_clean])
+            sim = cosine_similarity(vec, X_en)
+            idx = sim.argmax()
+            return format_answer(answers_en[idx]) if sim[0][idx] > 0.3 else "Sorry, I didn't understand your question. Please try rephrasing."
     except Exception as e:
-        print(f"Erreur dans la fonction get_answer : {e}")
-        return "Une erreur est survenue. Essayez de reformuler votre question."
+        print(f"Erreur get_answer: {e}")
+        return "Une erreur est survenue."
