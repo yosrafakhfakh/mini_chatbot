@@ -1,78 +1,43 @@
 import numpy as np
-from gensim.models import Word2Vec
 from sklearn.feature_extraction.text import TfidfVectorizer
 from pretraitement import preprocess
 
-# === Variables globales ===
+# Variables globales
 tfidf_vectorizers = {}
-word2vec_models = {}
 
 def build_tfidf_vectorizer(corpus):
     """
-    Prend une liste de textes (corpus) et retourne un vecteur TF-IDF et la matrice transformée.
+    Crée un modèle TF-IDF pour un corpus donné et retourne le vecteur TF-IDF et la matrice transformée.
     """
     vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(corpus)
+    tfidf_matrix = vectorizer.fit_transform(corpus)  # Transforme le corpus en une matrice TF-IDF
     return vectorizer, tfidf_matrix
 
-def train_vectorizer_and_w2v(questions, lang):
+def train_vectorizer(questions, lang):
     """
-    Entraîne les modèles TF-IDF et Word2Vec pour une langue donnée à partir de la liste de questions.
+    Entraîne le modèle TF-IDF pour une liste de questions dans une langue donnée.
     """
-    # Prétraitement
+    # Prétraitement des questions
     cleaned_questions = [preprocess(q, lang) for q in questions]
-    tokenized_questions = [q.split() for q in cleaned_questions]
 
-    # TF-IDF
+    # Création du modèle TF-IDF
     tfidf = TfidfVectorizer()
-    tfidf.fit(cleaned_questions)
+    tfidf.fit(cleaned_questions)  # Apprentissage du modèle sur les questions prétraitées
     tfidf_vectorizers[lang] = tfidf
 
-    # Word2Vec local (léger)
-    w2v = Word2Vec(sentences=tokenized_questions, vector_size=50, window=5, min_count=1)
-    word2vec_models[lang] = w2v
+    # Récupération des embeddings TF-IDF pour chaque question
+    tfidf_matrix = tfidf.transform(cleaned_questions).toarray()  # Matrice TF-IDF pour chaque question
+    
+    return tfidf_matrix
 
-def create_embeddings(questions, lang):
+def create_tfidf_embeddings(questions, lang):
     """
-    Crée des embeddings pour une liste de questions en utilisant les modèles TF-IDF et Word2Vec pour la langue spécifiée.
+    Crée des embeddings TF-IDF pour une liste de questions.
     """
     vectorizer = tfidf_vectorizers.get(lang)
-    w2v_model = word2vec_models.get(lang)
+    if not vectorizer:
+        raise ValueError(f"Vectorizer not trained for language: {lang}")
 
-    if not vectorizer or not w2v_model:
-        raise ValueError(f"Vectorizer or Word2Vec model not trained for language: {lang}")
-
-    cleaned_questions = [preprocess(q, lang) for q in questions]
-    embeddings = []
-
-    for question in cleaned_questions:
-        words = question.split()
-        vector = np.zeros(w2v_model.vector_size)
-        weights_sum = 0
-
-        for word in words:
-            if word in vectorizer.vocabulary_ and word in w2v_model.wv:
-                tfidf_weight = vectorizer.idf_[vectorizer.vocabulary_[word]]
-                vector += w2v_model.wv[word] * tfidf_weight
-                weights_sum += tfidf_weight
-
-        if weights_sum > 0:
-            vector /= weights_sum
-
-        embeddings.append(vector)
-
+    # Créer les embeddings TF-IDF pour les questions
+    embeddings = train_vectorizer(questions, lang)
     return embeddings
-
-def get_average_vector(words, model):
-    """
-    Calcule le vecteur moyen des mots fournis dans la liste 'words' en utilisant le modèle Word2Vec.
-    """
-    # On extrait les vecteurs de chaque mot
-    vectors = [model.wv[word] for word in words if word in model.wv]
-    
-    # Si aucun mot n'a été trouvé dans le modèle, retourner un vecteur nul
-    if len(vectors) == 0:
-        return np.zeros(model.vector_size)
-    
-    # Calculer la moyenne des vecteurs
-    return np.mean(vectors, axis=0)
